@@ -861,6 +861,9 @@ class TensorVariable(VariableTracker):
             )
 
     def method_as_subclass(self, cls):
+        import pdb
+
+        pdb.set_trace()
         if isinstance(cls, TensorSubclassVariable) and cls.source:
             from ..symbolic_convert import InstructionTranslator
             from .torch_function import TensorWithTFOverrideVariable
@@ -975,7 +978,10 @@ class TensorVariable(VariableTracker):
                 return wrap(tensor, sub_proxy)
 
             if tensor.dim() == 1:
-                return [wrap(val, sub_proxy[i]) for i, val in enumerate(tensor)]
+                # Example value may be functional tensor, in which case,
+                # enumerate() calls, so we need to wrap in functional mode
+                with tx.functional_mode:
+                    return [wrap(val, sub_proxy[i]) for i, val in enumerate(tensor)]
 
             return [
                 tolist(sub_tensor, sub_proxy=sub_proxy[i])
