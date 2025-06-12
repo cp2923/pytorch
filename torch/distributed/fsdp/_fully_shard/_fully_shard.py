@@ -91,6 +91,7 @@ def fully_shard(
     mp_policy: MixedPrecisionPolicy = MixedPrecisionPolicy(),
     offload_policy: OffloadPolicy = OffloadPolicy(),
     ignored_params: Optional[set[nn.Parameter]] = None,
+    allocate_memory_from_process_group: bool = False,
 ):
     """
     Apply fully sharded data parallelism (FSDP) to ``module``, where FSDP
@@ -229,6 +230,7 @@ def fully_shard(
             shard_placement_fn,
             mp_policy,
             offload_policy,
+            allocate_memory_from_process_group,
         )
 
     # For Dynamo

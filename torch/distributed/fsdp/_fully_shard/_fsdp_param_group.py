@@ -124,6 +124,7 @@ class FSDPParamGroup:
         shard_placement_fn: Optional[Callable[[nn.Parameter], Optional[Shard]]],
         mp_policy: MixedPrecisionPolicy,
         offload_policy: OffloadPolicy,
+        allocate_memory_from_process_group: bool = False,
     ):
         self.modules = modules  # permit ref cycle because 1:1 lifetime
         param_module_infos = _get_param_module_infos(params, modules)
@@ -147,6 +148,7 @@ class FSDPParamGroup:
         self.device_handle = _get_device_handle(device.type)
         self.mp_policy = mp_policy
         self.offload_policy = offload_policy
+        self.allocate_memory_from_process_group = allocate_memory_from_process_group
         self._training_state = TrainingState.IDLE
         # Group's sharded state always matches its parameters' sharded states
         self._sharded_state = ShardedState.SHARDED
@@ -276,6 +278,7 @@ class FSDPParamGroup:
                 async_op,
                 *self.comm_ctx.get_all_gather_streams(async_op, self._training_state),
                 self.device,
+                self.allocate_memory_from_process_group,
             )
 
     def wait_for_unshard(self):
@@ -461,6 +464,7 @@ class FSDPParamGroup:
                 self.all_reduce_grads,
                 self._partial_reduce_output,
                 self._all_reduce_hook,
+                self.allocate_memory_from_process_group,
             )
             self.comm_ctx.reduce_scatter_state = ReduceScatterState(
                 reduce_scatter_input, reduce_scatter_event
