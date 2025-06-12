@@ -216,7 +216,46 @@ class CompiledTritonKernels:
             del CompiledTritonKernels._cache[key]
 
 
+_ASYNC_COMPILE_POOL_MANAGER: Optional[AsyncCompilePoolManager] = None
+
+
+class AsyncCompilePoolManager:
+    """
+    Context manager to help quiesce and wakeup the subproc pool. This CM can
+    be entered early during compile, i.e., in dynamo. It then handles waking
+    up the pool at most once and quiescing at exit.
+    """
+
+    def __init__(self):
+        self._ready = False
+
+    def __enter__(self):
+        global _ASYNC_COMPILE_POOL_MANAGER
+        _ASYNC_COMPILE_POOL_MANAGER = self
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        global _ASYNC_COMPILE_POOL_MANAGER
+        AsyncCompile.quiesce()
+        _ASYNC_COMPILE_POOL_MANAGER = None
+
+    def _wakeup(self):
+        if not self._ready:
+            AsyncCompile.wakeup()
+            self._ready = True
+
+    @staticmethod
+    def wakeup():
+        global _ASYNC_COMPILE_POOL_MANAGER
+        if _ASYNC_COMPILE_POOL_MANAGER is not None:
+            _ASYNC_COMPILE_POOL_MANAGER._wakeup()
+
+
 class AsyncCompile:
+    """
+    Utilities to compile in thread pools or subprocess pools (in the case of Triton).
+    """
+
     def __init__(self) -> None:
         pass
 
@@ -272,9 +311,32 @@ class AsyncCompile:
         if get_compile_threads() <= 1:
             return
         _compile_start()
-        # Pool is initialized on first access
+        # Pool is created on first access
         cls.process_pool()
         _compile_end()
+
+    @classmethod
+    def quiesce(cls) -> None:
+        """
+        If using a SubprocPool, signal the sidecar process to shut down its
+        ProcessPoolExecutor.
+        """
+        # Don't inadvertently create a process pool if it doesn't already exist:
+        if get_compile_threads() > 1 and cls.process_pool.cache_info().currsize:
+            pool = cls.process_pool()
+            if isinstance(pool, SubprocPool):
+                pool.quiesce()
+
+    @classmethod
+    def wakeup(cls) -> None:
+        """
+        If using a SubprocPool, signal the sidecar process to start up its
+        ProcessPoolExecutor.
+        """
+        if get_compile_threads() > 1:
+            pool = cls.process_pool()
+            if isinstance(pool, SubprocPool):
+                pool.wakeup()
 
     @classmethod
     def submit(cls, task: Callable[..., Any]) -> Any:
