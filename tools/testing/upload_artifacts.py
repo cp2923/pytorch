@@ -33,9 +33,11 @@ def zip_artifact(file_name: str, paths: list[str]) -> None:
 def concated_logs() -> str:
     """Concatenate all the logs in the test-reports directory into a single string."""
     logs = []
-    for log_file in glob.glob(f"{REPO_ROOT}/test/test-reports/**/*.log", recursive=True):
+    for log_file in glob.glob(
+        f"{REPO_ROOT}/test/test-reports/**/*.log", recursive=True
+    ):
         logs.append(f"=== {log_file} ===")
-        with open(log_file, "r") as f:
+        with open(log_file) as f:
             # For every line, prefix with fake timestamp for log classifier
             for line in f:
                 line = line.rstrip("\n")  # Remove any trailing newline
